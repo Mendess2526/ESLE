@@ -11,7 +11,7 @@ if [ $# -eq 0 ];then
 else
 	database=$1
 fi
-	
+
 if [ -f data.gp ]; then
 	rm data.gp
 fi
@@ -20,5 +20,5 @@ for i in "${clients[@]}"; do
 	#sudo su postgres -c "pgbench -c $i testdb" 2>/dev/null | awk '/latency/ {print $4}' >> pgbench.txt
 	echo "$i $latency" >> data.gp
 done
-gnuplot pgbench.gp 
+gnuplot pgbench.gp
 
