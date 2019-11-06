@@ -1,7 +1,9 @@
 #!/bin/bash
 clients=(1 5 10 15 20 25 30)
-echo "set terminal pdf" > pgbench.gp
-echo "set output 'function.pdf'" >> pgbench.gp
+echo "set terminal png" > pgbench.gp
+echo "set title 'benchmark'" >> pgbench.gp
+echo "show title" >> pgbench.gp
+echo "set output 'function.png'" >> pgbench.gp
 echo "set xrange [1:31]" >> pgbench.gp
 echo "set xlabel \"Clients\"" >> pgbench.gp
 echo "set ylabel \"Latency [ms]\"" >> pgbench.gp
@@ -21,8 +23,10 @@ for i in "${clients[@]}"; do
 done
 gnuplot pgbench.gp 
 
-echo "set terminal pdf" > read.gp
-echo "set output 'read.pdf'" >> read.gp
+echo "set terminal png" > read.gp
+echo "set title 'Reads'" >> read.gp
+echo "show title" >> read.gp
+echo "set output 'read.png'" >> read.gp
 echo "set xrange [1:31]" >> read.gp
 echo "set xlabel \"Clients\"" >> read.gp
 echo "set ylabel \"Latency [ms]\"" >> read.gp
@@ -36,8 +40,10 @@ for i in "${clients[@]}"; do
 done
 gnuplot read.gp 
 
-echo "set terminal pdf" > write.gp
-echo "set output 'write.pdf'" >> write.gp
+echo "set terminal png" > write.gp
+echo "set title 'Writes'" >> write.gp
+echo "show title" >> write.gp
+echo "set output 'write.png'" >> write.gp
 echo "set xrange [1:31]" >> write.gp
 echo "set xlabel \"Clients\"" >> write.gp
 echo "set ylabel \"Latency [ms]\"" >> write.gp
