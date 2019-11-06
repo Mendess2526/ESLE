@@ -5,11 +5,10 @@ VOLUME=$PWD/keys:/keys
 pg_data_dir=/var/lib/postgresql/9.3/main
 DELEGATE_IP=$(cat ./delegate_ip)
 MASTER_IP=""
-SLAVE1_IP=""
-SLAVE2_IP=""
+SLAVE_IPS=()
 PGPOOL1_IP=""
 PGPOOL2_IP=""
-nodes="$(cat nodes)"
+nodes="$(./nodes.sh "$1")"
 
 # check whether docker image is already available
 echo -e "\e[32mCheck whether docker image locally available\e[0m"
@@ -41,18 +40,40 @@ done
 sleep 10
 
 echo ""
-while [[ -z "$MASTER_IP" ]] || [[  -z "$SLAVE1_IP" ]] || [[ -z "$SLAVE2_IP" ]] || [[ -z "$PGPOOL1_IP" ]] || [[ -z "$PGPOOL2_IP" ]] ; do
-    MASTER_IP=$(docker inspect master | jq '.[0].NetworkSettings.Networks.bridge.IPAddress' -r)
-    echo "master: $MASTER_IP"
-    SLAVE1_IP=$(docker inspect slave1 | jq '.[0].NetworkSettings.Networks.bridge.IPAddress' -r)
-    echo "slave1: $SLAVE1_IP"
-    SLAVE2_IP=$(docker inspect slave2 | jq '.[0].NetworkSettings.Networks.bridge.IPAddress' -r)
-    echo "slave2: $SLAVE2_IP"
-    PGPOOL1_IP=$(docker inspect pgpool-1 | jq '.[0].NetworkSettings.Networks.bridge.IPAddress' -r)
-    echo "pgpool-1: $PGPOOL1_IP"
-    PGPOOL2_IP=$(docker inspect pgpool-2 | jq '.[0].NetworkSettings.Networks.bridge.IPAddress' -r)
-    echo "pgpool-2: $PGPOOL2_IP"
+get_ip() {
+    local __ip
+    __ip=$(docker inspect "$2" \
+        | jq '.[0].NetworkSettings.Networks.bridge.IPAddress' -r -e) \
+        || return 1
+    eval "$1=$__ip"
+}
+
+for slave in $nodes
+do
+    while :;
+    do
+        ip=""
+        get_ip ip "$slave" || continue
+        [ -n "$ip" ] && break
+        sleep 1
+    done
+    case "$slave" in
+        master)
+            MASTER_IP="$ip"
+            ;;
+        pgpool-1)
+            PGPOOL1_IP="$ip"
+            ;;
+        pgpool-2)
+            PGPOOL2_IP="$ip"
+            ;;
+        slave*)
+            SLAVE_IPS+=("$ip")
+            ;;
+    esac
 done
+
+echo "${SLAVE_IPS[@]}"
 
 echo "................................"
 echo -e "\e[0m"
@@ -73,11 +94,11 @@ docker exec slave2 /etc/init.d/postgresql stop
 echo -e "\e[32mGenerating ssh keys\e[0m"
 
 for node in ${nodes[*]}; do
-    docker exec "$node" bash -c "mkdir -pv /keys/$node";
+    docker exec "$node" bash -c "mkdir -p /keys/$node";
     docker exec "$node" bash -c "ssh-keygen  -b 2048 -t rsa -f /keys/$node/id_rsa -q " ;
-    docker exec "$node" bash -c "mkdir -v /root/.ssh/" ;
-    docker exec "$node" bash -c "cp -v /keys/$node/id_rsa /root/.ssh/"
-    docker exec "$node" bash -c "mkdir -pv /var/lib/postgresql/.ssh/" ;
+    docker exec "$node" bash -c "mkdir /root/.ssh/" ;
+    docker exec "$node" bash -c "cp /keys/$node/id_rsa /root/.ssh/"
+    docker exec "$node" bash -c "mkdir -p /var/lib/postgresql/.ssh/" ;
 done
 
 for node in ${nodes[*]}; do
@@ -88,40 +109,40 @@ done
 echo "................................"
 echo -e "\e[32mAdding entries to /etc/hosts\e[0m"
 echo -e "\e[95m:::::for master"
-docker exec master bash -c "echo $SLAVE1_IP slave1 >> /etc/hosts"
-docker exec master bash -c "echo $SLAVE2_IP slave2 >> /etc/hosts"
+docker exec master bash -c "echo ${SLAVE_IPS[0]} slave1 >> /etc/hosts"
+docker exec master bash -c "echo ${SLAVE_IPS[1]} slave2 >> /etc/hosts"
 docker exec master bash -c "echo $PGPOOL2_IP pgpool-2 >> /etc/hosts"
 docker exec master bash -c "echo $PGPOOL1_IP pgpool-1 >> /etc/hosts"
 
 echo -e "\e[95m:::::for slave1"
-docker exec slave1 bash -c "echo $SLAVE2_IP slave2 >> /etc/hosts"
+docker exec slave1 bash -c "echo ${SLAVE_IPS[1]} slave2 >> /etc/hosts"
 docker exec slave1 bash -c "echo $MASTER_IP master >> /etc/hosts"
 docker exec slave1 bash -c "echo $PGPOOL2_IP pgpool-2 >> /etc/hosts"
 docker exec slave1 bash -c "echo $PGPOOL1_IP pgpool-1 >> /etc/hosts"
 
 echo -e "\e[95m:::::for slave2"
 docker exec slave2 bash -c "echo $MASTER_IP master >> /etc/hosts"
-docker exec slave2 bash -c "echo $SLAVE1_IP slave1 >> /etc/hosts"
+docker exec slave2 bash -c "echo ${SLAVE_IPS[0]} slave1 >> /etc/hosts"
 docker exec slave2 bash -c "echo $PGPOOL2_IP pgpool-2 >> /etc/hosts"
 docker exec slave2 bash -c "echo $PGPOOL1_IP pgpool-1 >> /etc/hosts"
 
 echo -e "\e[95m:::::for pgpool-2"
 docker exec pgpool-2 bash -c "echo $MASTER_IP master >> /etc/hosts"
-docker exec pgpool-2 bash -c "echo $SLAVE1_IP slave1 >> /etc/hosts"
-docker exec pgpool-2 bash -c "echo $SLAVE2_IP slave2 >> /etc/hosts"
+docker exec pgpool-2 bash -c "echo ${SLAVE_IPS[0]} slave1 >> /etc/hosts"
+docker exec pgpool-2 bash -c "echo ${SLAVE_IPS[1]} slave2 >> /etc/hosts"
 docker exec pgpool-2 bash -c "echo $PGPOOL1_IP pgpool-1 >> /etc/hosts"
 
 echo -e "\e[95m:::::for pgpool-1"
 docker exec pgpool-1 bash -c "echo $MASTER_IP master >> /etc/hosts"
-docker exec pgpool-1 bash -c "echo $SLAVE1_IP slave1 >> /etc/hosts"
+docker exec pgpool-1 bash -c "echo ${SLAVE_IPS[0]} slave1 >> /etc/hosts"
 docker exec pgpool-1 bash -c "echo $PGPOOL2_IP pgpool-2 >> /etc/hosts"
-docker exec pgpool-1 bash -c "echo $SLAVE2_IP slave2 >> /etc/hosts"
+docker exec pgpool-1 bash -c "echo ${SLAVE_IPS[1]} slave2 >> /etc/hosts"
 
 echo "................................"
 echo -e "\e[32mtesting ssh"
 for node in ${nodes[*]}; do
     echo -e "\e[95m:::::::::::on $node\e[0m"
-    docker exec "$node" bash -c 'file=/keys/nodes ; for name in `cat $file`; do ssh -i /root/.ssh/id_rsa -o StrictHostKeyChecking=no postgres@$name ; done'
+    docker exec "$node" bash -c 'for name in $(/keys/nodes.sh '"$1"'); do ssh -i /root/.ssh/id_rsa -o StrictHostKeyChecking=no postgres@$name : ; done'
 done
 
 echo "Copy known_hosts to postgres dir"
@@ -135,16 +156,17 @@ docker exec slave2 cp /keys/slave_postgresql.conf /etc/postgresql/9.3/main/postg
 
 echo -e "\e[32mAdding hosts for replication in pg_hba.conf"
 echo -e "\e[95m:::::::::on master\e[0m"
-docker exec master bash -c "echo host replication repl $SLAVE1_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
-docker exec master bash -c "echo host replication repl $SLAVE2_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+docker exec master bash -c "echo host replication repl ${SLAVE_IPS[0]}/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+docker exec master bash -c "echo host replication repl ${SLAVE_IPS[1]}/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
 docker exec master bash -c "echo host all pgpool $PGPOOL2_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
 docker exec master bash -c "echo host all all $PGPOOL2_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
 docker exec master bash -c "echo host all all $PGPOOL1_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
 docker exec master bash -c "sed -i -r '/^local +all +postgres +/ s/peer/trust/' /etc/postgresql/9.3/main/pg_hba.conf"
+docker exec master bash -c 'cat /etc/postgresql/9.3/main/pg_hba.conf'
 
 echo -e "\e[95m:::::::::on slave1\e[0m"
 docker exec slave1 bash -c "echo host replication repl $MASTER_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
-docker exec slave1 bash -c "echo host replication repl $SLAVE2_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+docker exec slave1 bash -c "echo host replication repl ${SLAVE_IPS[1]}/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
 docker exec slave1 bash -c "echo host all pgpool $PGPOOL2_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
 docker exec slave1 bash -c "echo host all all $PGPOOL2_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
 docker exec slave1 bash -c "echo host all all $PGPOOL1_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
@@ -152,7 +174,7 @@ docker exec slave1 bash -c "sed -i -r '/^local +all +postgres +/ s/peer/trust/' 
 
 echo -e "\e[95m:::::::::on slave2\e[0m"
 docker exec slave2 bash -c "echo host replication repl $MASTER_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
-docker exec slave2 bash -c "echo host replication repl $SLAVE1_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+docker exec slave2 bash -c "echo host replication repl ${SLAVE_IPS[0]}/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
 docker exec slave2 bash -c "echo host all pgpool $PGPOOL2_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
 docker exec slave2 bash -c "echo host all all $PGPOOL2_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
 docker exec slave2 bash -c "echo host all all $PGPOOL1_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
@@ -160,15 +182,15 @@ docker exec slave2 bash -c "sed -i -r '/^local +all +postgres +/ s/peer/trust/' 
 
 echo -e "\e[95m:::::::::on pgpool-2\e[0m"
 docker exec pgpool-2 bash -c "echo host all all $MASTER_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
-docker exec pgpool-2 bash -c "echo host all all $SLAVE1_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
-docker exec pgpool-2 bash -c "echo host all all $SLAVE2_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+docker exec pgpool-2 bash -c "echo host all all ${SLAVE_IPS[0]}/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+docker exec pgpool-2 bash -c "echo host all all ${SLAVE_IPS[1]}/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
 docker exec pgpool-2 bash -c "echo host all all $PGPOOL1_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
 docker exec pgpool-2 bash -c "sed -i -r '/^local +all +postgres +/ s/peer/trust/' /etc/postgresql/9.3/main/pg_hba.conf"
 
 echo -e "\e[95m:::::::::on pgpool-1\e[0m"
 docker exec pgpool-1 bash -c "echo host all all $MASTER_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
-docker exec pgpool-1 bash -c "echo host all all $SLAVE1_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
-docker exec pgpool-1 bash -c "echo host all all $SLAVE2_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+docker exec pgpool-1 bash -c "echo host all all ${SLAVE_IPS[0]}/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+docker exec pgpool-1 bash -c "echo host all all ${SLAVE_IPS[1]}/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
 docker exec pgpool-1 bash -c "echo host all all $PGPOOL2_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
 docker exec pgpool-1 bash -c "sed -i -r '/^local +all +postgres +/ s/peer/trust/' /etc/postgresql/9.3/main/pg_hba.conf"
 
@@ -184,9 +206,9 @@ docker exec master bash -c "scp /var/lib/postgresql/9.3/base_backup.tar postgres
 docker exec master bash -c "scp /var/lib/postgresql/9.3/base_backup.tar postgres@slave2:~"
 
 echo -e "\e[32mSlave1 Replication\e[0m"
-docker exec slave1 bash -c "/keys/slave1_replication.sh"
+docker exec slave1 bash -c "/keys/slave_replication.sh"
 echo -e "\e[32mSlave2 Replication\e[0m"
-docker exec slave2 bash -c "/keys/slave2_replication.sh"
+docker exec slave2 bash -c "/keys/slave_replication.sh"
 
 echo -e "\e[32mInstalling pgpool to pgpool-2\e[0m"
 docker exec pgpool-2 apt-get install -q -y  pgpool2 postgresql-9.3-pgpool2 arping
@@ -223,4 +245,4 @@ sleep 2.5
 docker exec pgpool-1 bash -c "/keys/pgpool-2_start.sh"
 
 echo -e "\e[32mAdding sample database\e[0m"
-psql -h "$DELEGATE_IP" -p 9999 -U postgres
+psql -h "$DELEGATE_IP" -p 9999 -U postgres </dev/null
