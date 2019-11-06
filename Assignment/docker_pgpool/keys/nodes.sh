@@ -11,5 +11,4 @@ for i in $(seq 1 "$n_slaves")
 do
     echo "slave$i"
 done
-echo pgpool-1
-echo pgpool-2
+echo pgpool

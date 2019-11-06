@@ -5,3 +5,4 @@ do
     docker stop "$node" && docker rm "$node"
     sudo rm -rf keys/"$node"
 done
+rm keys/pgpool-gen.conf
