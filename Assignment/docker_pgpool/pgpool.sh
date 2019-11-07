@@ -8,6 +8,7 @@ MASTER_IP=""
 SLAVE_IPS=()
 PGPOOL_IP=""
 nodes="$(./nodes.sh "$1")"
+echo "$nodes" | grep -c slave > /tmp/num_nodes
 
 get_slave_ip() {
     number="$(echo "$1" | grep -oP '[0-9]+$')"
@@ -31,7 +32,7 @@ if ! docker images | grep postmart/psql-9.3 ; then
             mkdir -p keys/"$dir"
         done
     else
-        print -e "\e[33Something went wrong\e[0m"
+        echo -e "\e[33Something went wrong\e[0m"
         exit 1
     fi
 fi
@@ -47,9 +48,11 @@ for node in ${nodes[*]}; do
         -v "$VOLUME" \
         postmart/psql-9.3:latest &
 
+    disown
+
 done
 
-sleep 10
+sleep 1
 
 echo ""
 for slave in $nodes
@@ -81,20 +84,22 @@ echo -e "\e[0m"
 echo "................................"
 echo "................................"
 echo -e "\e[32mStarting ssh\e[0m"
-docker exec master /etc/init.d/ssh start
-docker exec pgpool /etc/init.d/ssh start
+docker exec master /etc/init.d/ssh start &
+docker exec pgpool /etc/init.d/ssh start &
 for slave in $(echo "$nodes" | grep slave); do
-    docker exec "$slave" /etc/init.d/ssh start
+    docker exec "$slave" /etc/init.d/ssh start &
 done
+wait
+
 echo "................................"
 echo -e "\e[95mStopping psql\e[0m"
-docker exec master /etc/init.d/postgresql stop
+docker exec master /etc/init.d/postgresql stop &
 for slave in $(echo "$nodes" | grep slave); do
-    docker exec "$slave" /etc/init.d/postgresql stop
+    docker exec "$slave" /etc/init.d/postgresql stop &
 done
+wait
 
 echo -e "\e[32mGenerating ssh keys\e[0m"
-
 for node in ${nodes[*]}; do
     docker exec "$node" bash -c "mkdir -p /keys/$node";
     docker exec "$node" bash -c "ssh-keygen  -b 2048 -t rsa -f /keys/$node/id_rsa -q " ;
@@ -135,19 +140,21 @@ echo "................................"
 echo -e "\e[32mtesting ssh"
 for node in ${nodes[*]}; do
     echo -e "\e[95m:::::::::::on $node\e[0m"
-    docker exec "$node" bash -c 'for name in $(/keys/nodes.sh '"$1"'); do ssh -i /root/.ssh/id_rsa -o StrictHostKeyChecking=no postgres@$name : ; done'
+    docker exec "$node" bash -c 'for name in $(/keys/nodes.sh '"$1"'); do ssh -i /root/.ssh/id_rsa -o StrictHostKeyChecking=no postgres@$name : ; done' &
 done
+wait
 
 echo "Copy known_hosts to postgres dir"
 for node in ${nodes[*]}; do
-    docker exec "$node" bash -c "cp /root/.ssh/known_hosts /var/lib/postgresql/.ssh/" ;
+    docker exec "$node" bash -c "cp /root/.ssh/known_hosts /var/lib/postgresql/.ssh/" &
 done
 echo -e "\e[32mCopy postgres config file\e[0m"
-docker exec master cp /keys/master_postgresql.conf /etc/postgresql/9.3/main/postgresql.conf
+docker exec master cp /keys/master_postgresql.conf /etc/postgresql/9.3/main/postgresql.conf &
 for slave in $(echo "$nodes" | grep slave)
 do
-    docker exec "$slave" cp /keys/slave_postgresql.conf /etc/postgresql/9.3/main/postgresql.conf
+    docker exec "$slave" cp /keys/slave_postgresql.conf /etc/postgresql/9.3/main/postgresql.conf &
 done
+wait
 
 echo -e "\e[32mAdding hosts for replication in pg_hba.conf"
 echo -e "\e[95m:::::::::on master\e[0m"
@@ -185,13 +192,15 @@ docker exec master bash -c "/keys/base_backup_master.sh"
 
 echo -e "\e[32mCopy base_backup.tar to slaves\e[0m"
 for slave in $(echo "$nodes" | grep slave) ; do
-    docker exec master bash -c "scp /var/lib/postgresql/9.3/base_backup.tar postgres@$slave:~"
+    docker exec master bash -c "scp /var/lib/postgresql/9.3/base_backup.tar postgres@$slave:~" &
 done
+wait
 
 for slave in $(echo "$nodes" | grep slave) ; do
     echo -e "\e[32m$slave Replication\e[0m"
-    docker exec "$slave" bash -c "/keys/slave_replication.sh"
+    docker exec "$slave" bash -c "/keys/slave_replication.sh" &
 done
+wait
 
 echo -e "\e[32mInstalling pgpool to pgpool\e[0m"
 docker exec pgpool apt-get install -qq -y  pgpool2 postgresql-9.3-pgpool2 arping
@@ -214,25 +223,29 @@ docker exec pgpool bash -c "/keys/pgpool-2_pgpool.sh"
 docker exec pgpool bash -c "mkdir -p /var/lib/postgresql/bin"
 docker exec pgpool bash -c "cp /keys/pgpool-2_failover.sh /var/lib/postgresql/bin/failover.sh"
 
-docker exec master bash -c "cp /keys/pgpool-recovery.so /usr/lib/postgresql/9.3/lib/pgpool-recovery.so"
+docker exec master bash -c "cp /keys/pgpool-recovery.so /usr/lib/postgresql/9.3/lib/pgpool-recovery.so" &
 for slave in $(echo "$nodes" | grep slave) ; do
-    docker exec "$slave" bash -c "cp /keys/pgpool-recovery.so /usr/lib/postgresql/9.3/lib/pgpool-recovery.so"
+    docker exec "$slave" bash -c "cp /keys/pgpool-recovery.so /usr/lib/postgresql/9.3/lib/pgpool-recovery.so" &
 done
+wait
 
-docker exec master bash -c "cp /keys/basebackup.sh $pg_data_dir/basebackup.sh"
+docker exec master bash -c "cp /keys/basebackup.sh $pg_data_dir/basebackup.sh" &
 for slave in $(echo "$nodes" | grep slave) ; do
-    docker exec "$slave" bash -c "cp /keys/basebackup.sh $pg_data_dir/basebackup.sh"
+    docker exec "$slave" bash -c "cp /keys/basebackup.sh $pg_data_dir/basebackup.sh" &
 done
+wait
 
-docker exec master bash -c "cp /keys/pgpool_remote_start $pg_data_dir/pgpool_remote_start"
+docker exec master bash -c "cp /keys/pgpool_remote_start $pg_data_dir/pgpool_remote_start" &
 for slave in $(echo "$nodes" | grep slave) ; do
-    docker exec "$slave" bash -c "cp /keys/pgpool_remote_start $pg_data_dir/pgpool_remote_start"
+    docker exec "$slave" bash -c "cp /keys/pgpool_remote_start $pg_data_dir/pgpool_remote_start" &
 done
+wait
 
-docker exec master bash -c "cp /keys/pgpool-recovery $pg_data_dir/pgpool-recovery"
+docker exec master bash -c "cp /keys/pgpool-recovery $pg_data_dir/pgpool-recovery" &
 for slave in $(echo "$nodes" | grep slave) ; do
-    docker exec "$slave" bash -c "cp /keys/pgpool-recovery $pg_data_dir/pgpool-recovery"
+    docker exec "$slave" bash -c "cp /keys/pgpool-recovery $pg_data_dir/pgpool-recovery" &
 done
+wait
 
 echo -e "\e[32mStarting pool on pgpool\e[0m"
 docker exec pgpool bash -c "/keys/pgpool-2_start.sh"
