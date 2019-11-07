@@ -7,3 +7,6 @@
 * verify that there are no improvements latency for write transactions
 * verify improvements for read transactions
 * verify how much does the read transactions improve with the number of replicas
+* decompose the benchmark to put in the report
+  * what is the schema
+  * what are the request
