@@ -8,7 +8,7 @@ MASTER_IP=""
 SLAVE_IPS=()
 PGPOOL_IP=""
 nodes="$(./nodes.sh "$1")"
-echo "$nodes" | grep -c slave > /tmp/num_nodes
+echo "$nodes" | { grep -c slave || true; } > /tmp/num_nodes
 
 get_slave_ip() {
     number="$(echo "$1" | grep -oP '[0-9]+$')"
@@ -101,15 +101,15 @@ wait
 
 echo -e "\e[32mGenerating ssh keys\e[0m"
 for node in ${nodes[*]}; do
-    docker exec "$node" bash -c "mkdir -p /keys/$node";
-    docker exec "$node" bash -c "ssh-keygen  -b 2048 -t rsa -f /keys/$node/id_rsa -q " ;
-    docker exec "$node" bash -c "mkdir /root/.ssh/" ;
+    docker exec "$node" bash -c "mkdir -p /keys/$node"
+    docker exec "$node" bash -c "ssh-keygen  -b 2048 -t rsa -f /keys/$node/id_rsa -q -N ''"
+    docker exec "$node" bash -c "mkdir /root/.ssh/"
     docker exec "$node" bash -c "cp /keys/$node/id_rsa /root/.ssh/"
-    docker exec "$node" bash -c "mkdir -p /var/lib/postgresql/.ssh/" ;
+    docker exec "$node" bash -c "mkdir -p /var/lib/postgresql/.ssh/"
 done
 
 for node in ${nodes[*]}; do
-    docker exec "$node" bash -c "cd /keys/ && find . -type f -name id_rsa.pub -exec cat {} \; | tee /root/.ssh/authorized_keys /var/lib/postgresql/.ssh/authorized_keys"
+    docker exec "$node" bash -c "cd /keys/ && find . -type f -name id_rsa.pub -exec cat {} \; | tee /root/.ssh/authorized_keys /var/lib/postgresql/.ssh/authorized_keys" &>/dev/null
     docker exec "$node" bash -c "echo '$(cat ~/.ssh/id_rsa.pub)' >> /root/.ssh/authorized_keys"
 done
 
@@ -203,7 +203,8 @@ done
 wait
 
 echo -e "\e[32mInstalling pgpool to pgpool\e[0m"
-docker exec pgpool apt-get install -qq -y  pgpool2 postgresql-9.3-pgpool2 arping
+docker exec pgpool apt-get install -qq -y \
+    pgpool2 postgresql-9.3-pgpool2 arping &>/dev/null
 docker exec pgpool /etc/init.d/pgpool2 stop
 cp keys/pgpool.conf keys/pgpool-gen.conf
 
