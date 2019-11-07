@@ -17,18 +17,19 @@ fi
 	echo "plot 'data_read_2slaves.gp' using 1:2 title \"Latency\" pt 7 ps 1"
 } > read_nslaves.gp
 
-if [ -f data_read_pgpool_nslaves.gp ]; then
-	rm data_read_pgpool_nslaves.gp
+if [ -f data_read_nslaves.gp ]; then
+	rm data_read_nslaves.gp
 fi
+DELEGATE_IP="$(docker inspect pgpool | jq '.[0].NetworkSettings.Networks.bridge.IPAddress' -r)"
 for i in "${clients[@]}"; do
-	latency=$(sudo su postgres -c "pgbench -c $i -S $database" 2>/dev/null | awk '/latency/ {print $4}')
+	latency=$(pgbench -c "$i" -S -h "$DELEGATE_IP" -p 9999 -U postgres "$database" | awk '/latency/ {print $4}')
 	echo "$i $latency" >> data_read_nslaves.gp
 done
-gnuplot read_nslaves.gp 
+gnuplot read_nslaves.gp
 
 #write_nopgpool
 {
-	echo "set terminal png" 
+	echo "set terminal png"
 	echo "set title 'Writes'"
 	echo "set output 'write_2slaves.png'"
 	echo "set xrange [1:31]"
@@ -41,11 +42,11 @@ if [ -f data_write_nslaves.gp ]; then
 	rm data_write_nslaves.gp
 fi
 for i in "${clients[@]}"; do
-	latency=$(sudo su postgres -c "pgbench -c $i -N $database" 2>/dev/null | awk '/latency/ {print $4}')
+	latency=$(pgbench -c "$i" -N -h "$DELEGATE_IP" -p 9999 -U postgres "$database" | awk '/latency/ {print $4}')
 	echo "$i $latency" >> data_write_nslaves.gp
 done
-gnuplot write_nslaves.gp 
- 
+gnuplot write_nslaves.gp
+
 file1="data_write_nslaves.gp"
 file1col1=()
 file1col2=()
@@ -90,4 +91,4 @@ done
 	echo "plot 'data_rw_nslaves.gp' using 1:2 title \"write\" pt 7 ps 1, '' using 1:3 title \"read\" pt 7 ps 1"
 } > rw_nslaves.gp
 
-gnuplot rw_nslaves.gp 
+gnuplot rw_nslaves.gp
