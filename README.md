@@ -14,6 +14,8 @@
 ## Dependencies
  - docker
  - jq
+ - pgbench
+ - psql
 
 ## Instructions
 
