@@ -1,5 +1,6 @@
 #!/bin/bash
 
+! [ -f /tmp/num_nodes ] && exit 0
 sudo true
 ./nodes.sh "$(cat /tmp/num_nodes)" | while read -r node
 do
