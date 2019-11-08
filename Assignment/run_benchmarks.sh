@@ -1,6 +1,5 @@
 #!/bin/sh
 
-set -e
 rm -rf results
 if [ "$1" != "" ]; then
     if [ "$2" != "" ]; then
