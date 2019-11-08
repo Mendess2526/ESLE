@@ -101,33 +101,49 @@ wait
 
 echo -e "\e[32mGenerating ssh keys\e[0m"
 for node in ${nodes[*]}; do
+{
     docker exec "$node" bash -c "mkdir -p /keys/$node"
     docker exec "$node" bash -c "ssh-keygen  -b 2048 -t rsa -f /keys/$node/id_rsa -q -N ''"
     docker exec "$node" bash -c "mkdir /root/.ssh/"
     docker exec "$node" bash -c "cp /keys/$node/id_rsa /root/.ssh/"
     docker exec "$node" bash -c "mkdir -p /var/lib/postgresql/.ssh/"
+} &
 done
+wait
 
 for node in ${nodes[*]}; do
-    docker exec "$node" bash -c "cd /keys/ && find . -type f -name id_rsa.pub -exec cat {} \; | tee /root/.ssh/authorized_keys /var/lib/postgresql/.ssh/authorized_keys" &>/dev/null
+{
+    docker exec "$node" bash \
+        -c "cd /keys/ && find . -type f -name id_rsa.pub -exec cat {} \; | tee /root/.ssh/authorized_keys /var/lib/postgresql/.ssh/authorized_keys" &>/dev/null
     docker exec "$node" bash -c "echo '$(cat ~/.ssh/id_rsa.pub)' >> /root/.ssh/authorized_keys"
+} &
+done
+wait
+
+for node in ${nodes[*]}; do
+    docker exec "$node" bash -c "rm -rf /keys/$node" &
 done
 
 echo "................................"
 echo -e "\e[32mAdding entries to /etc/hosts\e[0m"
 echo -e "\e[95m:::::for master"
-for slave in $(echo "$nodes" | grep slave); do
-    docker exec master bash -c "echo $(get_slave_ip "$slave") $slave >> /etc/hosts"
-done
-docker exec master bash -c "echo $PGPOOL_IP pgpool >> /etc/hosts"
+
+{
+    docker exec master bash -c "echo $PGPOOL_IP pgpool >> /etc/hosts"
+    for slave in $(echo "$nodes" | grep slave); do
+        docker exec master bash -c "echo $(get_slave_ip "$slave") $slave >> /etc/hosts"
+    done
+} &
 
 for slave in $(echo "$nodes" | grep slave); do
-    echo -e "\e[95m:::::for $slave"
-    for other_slave in $(echo "$nodes" | grep slave | grep -v "$slave"); do
-        docker exec "$slave" bash -c "echo $(get_slave_ip "$other_slave") slave2 >> /etc/hosts"
-    done
-    docker exec "$slave" bash -c "echo $MASTER_IP master >> /etc/hosts"
-    docker exec "$slave" bash -c "echo $PGPOOL_IP pgpool >> /etc/hosts"
+    {
+        echo -e "\e[95m:::::for $slave"
+        docker exec "$slave" bash -c "echo $MASTER_IP master >> /etc/hosts"
+        docker exec "$slave" bash -c "echo $PGPOOL_IP pgpool >> /etc/hosts"
+        for other_slave in $(echo "$nodes" | grep slave | grep -v "$slave"); do
+            docker exec "$slave" bash -c "echo $(get_slave_ip "$other_slave") slave2 >> /etc/hosts"
+        done
+    } &
 done
 
 echo -e "\e[95m:::::for pgpool"
@@ -135,6 +151,7 @@ docker exec pgpool bash -c "echo $MASTER_IP master >> /etc/hosts"
 for slave in $(echo "$nodes" | grep slave); do
     docker exec pgpool bash -c "echo $(get_slave_ip "$slave") $slave >> /etc/hosts"
 done
+wait
 
 echo "................................"
 echo -e "\e[32mtesting ssh"
@@ -158,30 +175,51 @@ wait
 
 echo -e "\e[32mAdding hosts for replication in pg_hba.conf"
 echo -e "\e[95m:::::::::on master\e[0m"
+{
 for slave in $(echo "$nodes" | grep slave); do
-    docker exec master bash -c "echo host replication repl $(get_slave_ip "$slave")/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+    sl_ip="$(get_slave_ip "$slave")"
+    docker exec master bash \
+        -c "echo host replication repl $sl_ip/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
 done
-docker exec master bash -c "echo host all pgpool $PGPOOL_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
-docker exec master bash -c "echo host all all $PGPOOL_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
-docker exec master bash -c "sed -i -r '/^local +all +postgres +/ s/peer/trust/' /etc/postgresql/9.3/main/pg_hba.conf"
+docker exec master bash \
+    -c "echo host all pgpool $PGPOOL_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+docker exec master bash \
+    -c "echo host all all $PGPOOL_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+docker exec master bash \
+    -c "sed -i -r '/^local +all +postgres +/ s/peer/trust/' /etc/postgresql/9.3/main/pg_hba.conf"
+} &
 
 for slave in $(echo "$nodes" | grep 'slave'); do
     echo -e "\e[95m:::::::::on $slave\e[0m"
-    docker exec "$slave" bash -c "echo host replication repl $MASTER_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+    {
+    docker exec "$slave" bash \
+        -c "echo host replication repl $MASTER_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+
     for other_slave in $(echo "$nodes" | grep 'slave' | grep -v "$slave"); do
-        docker exec "$slave" bash -c "echo host replication repl $(get_slave_ip "$other_slave")/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+        sl_ip="$(get_slave_ip "$slave")"
+        docker exec "$slave" bash \
+            -c "echo host replication repl $sl_ip/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
     done
-    docker exec "$slave" bash -c "echo host all pgpool $PGPOOL_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
-    docker exec "$slave" bash -c "echo host all all $PGPOOL_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
-    docker exec "$slave" bash -c "sed -i -r '/^local +all +postgres +/ s/peer/trust/' /etc/postgresql/9.3/main/pg_hba.conf"
+    docker exec "$slave" bash \
+        -c "echo host all pgpool $PGPOOL_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+    docker exec "$slave" bash \
+        -c "echo host all all $PGPOOL_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+    docker exec "$slave" bash \
+        -c "sed -i -r '/^local +all +postgres +/ s/peer/trust/' /etc/postgresql/9.3/main/pg_hba.conf"
+    } &
 done
 
 echo -e "\e[95m:::::::::on pgpool\e[0m"
-docker exec pgpool bash -c "echo host all all $MASTER_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+docker exec pgpool bash \
+    -c "echo host all all $MASTER_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
 for slave in $(echo "$nodes" | grep slave); do
-    docker exec pgpool bash -c "echo host all all $(get_slave_ip "$slave")/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+    docker exec pgpool bash \
+        -c "echo host all all $(get_slave_ip "$slave")/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
 done
-docker exec pgpool bash -c "echo host all all $PGPOOL_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+docker exec pgpool bash \
+    -c "echo host all all $PGPOOL_IP/16 trust >> /etc/postgresql/9.3/main/pg_hba.conf"
+
+wait
 
 echo -e "\e[95mcreating user database on master\e[0m"
 docker exec master /etc/init.d/postgresql start
@@ -203,7 +241,7 @@ done
 wait
 
 echo -e "\e[32mInstalling pgpool to pgpool\e[0m"
-docker exec pgpool apt-get install -qq -y \
+docker exec pgpool apt-get install -q -y \
     pgpool2 postgresql-9.3-pgpool2 arping &>/dev/null
 docker exec pgpool /etc/init.d/pgpool2 stop
 cp keys/pgpool.conf keys/pgpool-gen.conf
@@ -224,15 +262,18 @@ docker exec pgpool bash -c "/keys/pgpool-2_pgpool.sh"
 docker exec pgpool bash -c "mkdir -p /var/lib/postgresql/bin"
 docker exec pgpool bash -c "cp /keys/pgpool-2_failover.sh /var/lib/postgresql/bin/failover.sh"
 
-docker exec master bash -c "cp /keys/pgpool-recovery.so /usr/lib/postgresql/9.3/lib/pgpool-recovery.so" &
+docker exec master bash \
+    -c "cp /keys/pgpool-recovery.so /usr/lib/postgresql/9.3/lib/pgpool-recovery.so" &
 for slave in $(echo "$nodes" | grep slave) ; do
-    docker exec "$slave" bash -c "cp /keys/pgpool-recovery.so /usr/lib/postgresql/9.3/lib/pgpool-recovery.so" &
+    docker exec "$slave" bash \
+        -c "cp /keys/pgpool-recovery.so /usr/lib/postgresql/9.3/lib/pgpool-recovery.so" &
 done
 wait
 
 docker exec master bash -c "cp /keys/basebackup.sh $pg_data_dir/basebackup.sh" &
 for slave in $(echo "$nodes" | grep slave) ; do
-    docker exec "$slave" bash -c "cp /keys/basebackup.sh $pg_data_dir/basebackup.sh" &
+    docker exec "$slave" bash \
+        -c "cp /keys/basebackup.sh $pg_data_dir/basebackup.sh" &
 done
 wait
 
@@ -251,10 +292,8 @@ wait
 echo -e "\e[32mStarting pool on pgpool\e[0m"
 docker exec pgpool bash -c "/keys/pgpool-2_start.sh"
 
-docker update --cpus=0.05 master &
-docker update --cpus=0.05 pgpool &
-for slave in $(echo "$nodes" | grep slave) ; do
-    docker update --cpus=0.05 "$slave" &
+for node in ${nodes[*]}; do
+    docker update --cpus=0.05 "$node" &
 done
 wait
 
