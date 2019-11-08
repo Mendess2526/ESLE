@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 set -e
 rm -rf results
@@ -21,7 +21,11 @@ for i in $(seq "$from" "$to"); do
     PGPOOL_IP="$(docker inspect pgpool \
         | jq '.[0].NetworkSettings.Networks.bridge.IPAddress' -r -e)"
 
+    echo -e "\e[34mINITIALIZING DB\e[0m"
+
     pgbench -i -U postgres -p 9999 -h "$PGPOOL_IP" postgres
+
+    echo -e "\e[34mRUNNING BENCHMARKS\e[0m"
 
     ./benchmarks/multiple_slaves.sh postgres "$PGPOOL_IP" 9999 postgres \
         "results/multiple_slaves_${i}slaves/"

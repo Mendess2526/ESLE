@@ -251,5 +251,12 @@ wait
 echo -e "\e[32mStarting pool on pgpool\e[0m"
 docker exec pgpool bash -c "/keys/pgpool-2_start.sh"
 
+docker update --cpus=0.05 master &
+docker update --cpus=0.05 pgpool &
+for slave in $(echo "$nodes" | grep slave) ; do
+    docker update --cpus=0.05 "$slave" &
+done
+wait
+
 echo -e "\e[32mAdding sample database\e[0m"
 echo PGPOOL IP $PGPOOL_IP

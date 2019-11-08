@@ -25,7 +25,7 @@ if [ -f data_read_nslaves.gp ]; then
 	rm data_read_nslaves.gp
 fi
 for i in "${clients[@]}"; do
-	latency=$(pgbench -c "$i" -S -h "$IP" -p "$PORT" -U "$DB_USER" "$database" | awk '/latency/ {print $4}')
+	latency=$(pgbench -T 60 -c "$i" -S -h "$IP" -p "$PORT" -U "$DB_USER" "$database" | awk '/latency/ {print $4}')
 	echo "$i $latency" >> data_read_nslaves.gp
 done
 gnuplot read_nslaves.gp
@@ -45,7 +45,7 @@ if [ -f data_write_nslaves.gp ]; then
 	rm data_write_nslaves.gp
 fi
 for i in "${clients[@]}"; do
-	latency=$(pgbench -c "$i" -N -h "$IP" -p "$PORT" -U "$DB_USER" "$database" | awk '/latency/ {print $4}')
+	latency=$(pgbench -T 60 -c "$i" -h "$IP" -p "$PORT" -U "$DB_USER" "$database" | awk '/latency/ {print $4}')
 	echo "$i $latency" >> data_write_nslaves.gp
 done
 gnuplot write_nslaves.gp
