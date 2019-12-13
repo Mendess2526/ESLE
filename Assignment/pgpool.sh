@@ -111,6 +111,7 @@ for node in ${nodes[*]}; do
 done
 wait
 
+echo -e "\e[32mTrading keys between nodes\e[0m"
 for node in ${nodes[*]}; do
 {
     docker exec "$node" bash \

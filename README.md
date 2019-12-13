@@ -26,3 +26,10 @@ cd ./Assignment
 
 This will run pgpool with 0 to 4 replicas and benchmark them. Saving the results to
 `./Assignment/results/`
+
+
+
+
+## Todo
+Por hash do commit no relatorio
+USL para prever? (Nao sei se tem de estar na proxima entrega)
