@@ -1,0 +1,32 @@
+\subsection{Descrição do sistema}
+PGpool-II é um \textit{middleware} posicionado entre os servidores PostgreSQL e clientes, actuando como cliente para os servidores e como servidor para os clientes. Este \textit{middleware} tem várias funcionalidades que incluem balanceador de carga, replicador de base de dados (para backups e robustez contra falhas), gestor de ligações e sistema de cache para \textit{queries}. 
+
+Em geral o PGpool-II coordena um \textit{cluster} de base de dados tendo o porto e o \textit{hostname} de cada uma destas, este \textit{cluster} é formado por um \textit{master} e múltiplos \textit{slaves}. O \textit{master} pode receber transacções do PGpool-II de ambos os tipos (leitura e escrita), enquanto que os \textit{slaves} apenas recebem as transacções de escrita do \textit{master} e as de leitura do PGpool-II.
+No \textit{cluster} a base de dados é replicada entre todos os \textit{slaves} podendo haver uma distribuição de transacções de leitura por entre os \textit{slaves}. \\
+
+No âmbito deste trabalho vamos analisar o PGpool-II como balanceador de carga. É necessário notar que este \textit{middleware} apenas tem vantagens de escalonamento apenas sobre transacções de leitura e não a nível de transacções de escrita. Através da figura~\ref{fig:esquema} é possível observar o esquema genérico do sistema e a distribuição dos tipos de transacções.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{images/pgpool_system.png}
+    \caption{Esquema genérico da ligação entre cliente e servidor PostgreSQL.}
+    \label{fig:esquema}
+\end{figure}
+
+\subsection{Workload}
+
+O \textit{wordload} foi feito usando a ferramenta PGbench, esta baseia-se no TPC-B \textit{benchmark}\footnote{http://www.tpc.org/tpcb/}. Este pode ser visto como um \textit{stress test} de bases de dados, caracterizado por:
+
+\begin{itemize}
+    \item Quantidades significativas de I/O de disco
+    \item Tempo moderado de execução do sistema
+    \item Integridade das transacções
+\end{itemize}
+
+Cada transacção gerada pelo \textit{benchmark} contém cinco operações \textit{SELECT}, \textit{UPDATE} e \textit{INSERT} a não ser que seja seleccionado o modo apenas para leituras em que são feitos apenas operações \textit{SELECT}. Foram realizados testes, com duração de 60 segundos, de escritas e leituras para 1, 5, 10, 15, 20, 25 e 30 clientes em simultâneo para analisar \textit{clusters} com 0, 1, 2 e 3 \textit{slaves}. Os testes foram realizados com uma utilização máxima de 5\% do cpu por cada réplica.\par
+
+% Quero o "porquê", o objectivo da cadeira é entender o sistema e eventuais bottlenecks, para isso é necessário um profundo conhecimento do sistema (isto é demasiado superficial)
+Devido à arquitectura do PGPool é necessário fazer os dois tipos de testes em separado (leituras e escritas) para ser possível analisar os benefícios do sistema, uma vez que se verificam maioritariamente nas transacções de leitura onde é possível balancear os pedidos entre os vários \textit{slaves}. 
+
+Outro aspecto a notar é a duração, de 60 segundos, já que o PGPool reutiliza as ligações estabelecidas à base de dados. Os benefícios deste aspecto do sistema só se verificam com um tempo de utilização razoável em que haja oportunidade de aplicar este reaproveitamento de ligações múltiplas vezes.
+%o PGPool devia ter um periodo de warm-up 

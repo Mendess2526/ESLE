@@ -1,0 +1,52 @@
+\subsection{Características das Maquinas}
+
+Quatro maquinas diferentes foram utilizadas para realizar as experiências, todas estas a correr linux (kernel 4.15.0-1051-aws).
+
+\begin{table}
+    \centering
+    \begin{tabular}{||c|c|c||}
+        \hline
+         Maquina & CPU & Disco \\\hline
+         1 & Intel Xeon E5-2686 v4 octa-core 2.3GHz & EBS, General Purpose SSD \\\hline
+         2 & Intel Xeon E5-2686 v4 octa-core 2.3GHz & EBS, Magnetic (standard) \\\hline
+         3 & Intel Xeon E5-2676 v3 dual-core 2.4GHz & EBS, General Purpose SSD \\\hline
+         4 & Intel Xeon E5-2676 v3 dual-core 2.4GHz & EBS, Magnetic (standard) \\\hline
+    \end{tabular}
+    \label{tab:maquinas}
+    \caption{Maquinas utilizadas}
+\end{table}
+
+\subsection{Workload}
+
+O \textit{workload} utilizado para as benchmarks foi o seguinte~\cite{pgbench}:
+\subsubsection{Escritas}
+\begin{minted}{sql}
+BEGIN;
+UPDATE pgbench_accounts SET abalance = abalance + :delta 
+    WHERE aid = :aid;
+    
+SELECT abalance FROM pgbench_accounts 
+    WHERE aid = :aid;
+    
+UPDATE pgbench_tellers SET tbalance = tbalance + :delta 
+    WHERE tid = :tid;
+    
+UPDATE pgbench_branches SET bbalance = bbalance + :delta 
+    WHERE bid = :bid;
+    
+INSERT INTO pgbench_history (tid, bid, aid, delta, mtime)
+    VALUES (:tid, :bid, :aid, :delta, CURRENT_TIMESTAMP);
+    
+END;
+\end{minted}
+
+\subsubsection{Leituras}
+\begin{minted}{sql}
+BEGIN;
+SELECT abalance FROM pgbench_accounts 
+    WHERE aid = :aid;
+END;
+\end{minted}
+
+Estes \textit{workloads} são repetidos durante 60 segundos tentando realizar o máximo de transacções possíveis.
+

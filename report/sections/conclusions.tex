@@ -1,0 +1,6 @@
+\subsection{Conclusão}
+Com os resultados obtidos podemos verificar que para um \textit{cluster} de base de dados, usando o PGpool, o paralelismo obtido para vários clientes concorrentes melhora a latência média das transacções de leitura, verificando que até certo ponto o impacto do \textit{cluster} com o aumento do número de réplicas só melhora a latência para um aumento do \textit{workload}. Esta situação foi verificada para o caso em que a latência de um \textit{cluster} com 3 réplicas só melhorou quando o número de clientes atingiu os 30, sendo pior para os outros casos. \\
+
+O uso do sistema PGpool melhora apenas a latência média das transacções de leitura, piorando significativamente as transacções de escrita. 
+
+Assim, a instalação do PGpool num \textit{cluster} de base de dados só será benéfica caso este seja alvo, maioritariamente, de transacções de leitura, caso contrário deverá ser dada atenção ao deterioramento da performance das transacções de escrita, tentando procurar soluções para mitigar este problema.

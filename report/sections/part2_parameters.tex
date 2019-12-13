@@ -1,0 +1,141 @@
+
+\subsection{Benchmark}
+\subsubsection{Parâmetros}
+Iram ser analisados 5 parâmetros do sistema com dois níveis cada um. Dois parâmetros são intrínsecos ao PgPool enquanto os outros 3 serão recursos das instâncias em que o sistema irá ser analisado.\newline
+Parâmetros intrínsecos ao sistema:
+\begin{itemize}
+    \item A - Número de nós (2/5)
+    \item D - Connection cache (On / Off)
+\end{itemize}
+Parâmetros das máquinas:
+\begin{itemize}
+    \item B - CPU Cores (2/8)
+    \item C - Disco (HDD/SSD)
+    \item E - Ram (521Mb / 1Gb)
+\end{itemize}
+
+Fazer um benchmark completo tendo 5 factores com 2 níveis cada implica realizar um total de $2^5=32$ experiências. Para simplificar e facilitar a análise reduziu-se o número de experiências para $2^{(5-2)}=8$. De modo a reduzir o número de experiências 2 dos 5 parâmetros vão ser definidos como combinação de outros dois parâmetros da seguinte da maneira:\newline
+
+\begin{table}
+    \centering
+    \begin{tabular}{|| c | c | c | c | c | c ||} 
+         \hline
+          Experiência & A & B & C & D $(A.B)$ & E $(B.C)$ \\ [0.5ex] 
+         \hline\hline
+         1 & -1 & -1 & -1 & 1 & 1\\ 
+         \hline
+         2 & -1 & -1 & 1 & 1 & -1\\ 
+         \hline
+         3 & -1 & 1 & -1 & -1 & -1\\ 
+         \hline
+         4 & -1 & 1 & 1 & -1 & 1\\ 
+         \hline
+         5 & 1 & -1 & -1 & -1 & 1\\ 
+         \hline
+         6 & 1 & -1 & 1 & -1 & -1\\ 
+         \hline
+         7 & 1 & 1 & -1 & 1 & -1\\ 
+         \hline
+         8 & 1 & 1 & 1 & 1 & 1\\ 
+        \hline
+    \end{tabular}
+    \caption{Sign tables}
+\end{table}
+
+\subsubsection{Métricas:}
+A métricas medidas foram as mesmas analisadas na primeira parte, latência de operações de escrita e leitura. Na primeira parte do projeto chegamos a conclusão dos factores que influenciam positivamente e negativamente a escalabilidade do sistema.\newline
+Para operações de leitura a latência melhorava com mais nós e para operações de escrita a latência piorava bastante em relação ao benefícios que o sistema trazia para operações de leitura. Assim o PgPool apenas era benéfico se o sistema realizasse maioritariamente operações de leitura a não ser que fosse possível mitigar o aumento da latência de operações de escrita com o aumento do número de nós, foi possível nesta parte analisar e quantificar de que forma era possível mitigar este problema.
+
+\subsubsection{Resultados:}
+\begin{table}
+    \centering
+    \begin{tabular}{|| c | c | c | c | c | c | c | c ||} 
+         \hline
+         Experiência & Nós & CPU Cores & Disco & Connection Cache & Ram & Leituras[ms] & Escritas[ms]\\ [0.5ex] 
+         \hline\hline
+         1 & 2 & 2 & HDD & ON & 1GB & 45.80 & 1273.01\\ 
+         \hline
+         2 & 2 & 2 & SSD & ON & 512Mb & 44.43 & 842.77\\ 
+         \hline
+         3 & 2 & 8 & HDD & OFF & 512Mb & 10.815 & 1248.694\\ 
+         \hline
+         4 & 2 & 8 & SSD & OFF & 1GB & 9.878 & 695.192\\ 
+         \hline
+         5 & 5 & 2 & HDD & OFF & 1GB & 48.039 & 3218.947\\ 
+         \hline
+         6 & 5 & 2 & SSD & OFF & 512Mb & 45.447 & 1615.756\\ 
+         \hline
+         7 & 5 & 8 & HDD & ON & 512Mb & 11.293 & 2156.891\\ 
+         \hline
+         8 & 5 & 8 & SSD & ON & 1GB & 24.687 & 1534.96\\ 
+         \hline
+    \end{tabular}
+    \caption{Resultados - Latência}
+\end{table}
+Com base nos resultados foi determinado o impacto de cada parâmetro em análise tanto para as operações de escritas como para operações de leitura.
+
+\begin{itemize}
+    \item q0: performance base
+    \item qA: performance associada ao número de nós
+    \item qB: performance associada aos cores utilizados
+    \item qC: performance associada ao tipo de disco
+    \item qD: performance associada ao parâmetro de \textit{connection cache}
+    \item qE: performance associada à RAM
+\end{itemize}
+
+\subsubsection{Leituras:}
+\noindent Cálculo do peso das \textit{performances} para operações de leitura:
+\begin{itemize}
+    \item q0: 30.048
+    \item qA: -2.317
+    \item qB: \textcolor{red}{15.880}
+    \item qC: -1.061
+    \item qD: 1.503
+    \item qE: 2.052
+\end{itemize}
+Variação total da latência: 
+\begin{equation}
+    SS_{T}= 8*(qA^2+qB^2+qC^2+qD^2+qE^2)=2121.28
+\end{equation}
+
+Efeito em percentagem de cada parâmetro no sistema:
+\begin{itemize}
+    \item Nós (qA): 2.2\%
+    \item CPU Cores (qB): \textcolor{red}{95.12\%}
+    \item Disco (qC): 0.43\%
+    \item Connection cache (qD): 0.85\%
+    \item RAM (qE): 1.50\%
+\end{itemize}
+
+\subsubsection{Escritas:}
+Cálculo do peso das \textit{performances} para operações de escrita:
+\begin{itemize}
+    \item q0: 1573.277
+    \item qA: \textcolor{red}{-558.361}
+    \item qB: 164.343
+    \item qC: \textcolor{red}{401.108}
+    \item qD: -121.369
+    \item qE: 107.249
+\end{itemize}
+Variação total da latência: 
+\begin{equation}
+    SS_{T}= 8*(qA^2+qB^2+qC^2+qD^2+qE^2)=4207171.70
+\end{equation}
+
+Efeito em percentagem de cada parâmetro no sistema:
+\begin{itemize}
+    \item Nós (qA): \textcolor{red}{59.28\%}
+    \item CPU Cores (qB): 5.14\%
+    \item Disco (qC): \textcolor{red}{30.59\%}
+    \item Connection cache (qD): 2.8\%
+    \item RAM (qE): 2.19\%
+\end{itemize}
+
+\subsection{Conclusões}
+Como visto já na parte 1 o comportamento do sistema varia bastante conforme a natureza do \textit{workload}, consequentemente o impacto dos vários parâmetros também é diferente para vários tipos de workload. No geral parâmetros como o \textit{connection cache} e RAM não tiveram grande impacto, este facto pode ser explicado pelo facto de o workload usado não ser suficientemente grande para beneficiar destes parâmetros.
+
+\subsubsection{Leituras:}
+Para operações de leitura o parâmetro que mais afeta a \textit{performance}, positivamente, é o poder de processamento (número de cores), tendo um impacto de 95\%. Isto pode ser explicado pelo facto de o número de cores, tal como o número de nós, aumentar o nível de paralelismo do sistema.
+
+\subsubsection{Escritas:}
+Para operações de escrita o parâmetro que mais afetou negativamente o sistema foi o número de nós, tal como explicado já na parte 1 o facto de nas escritas todos os nós terem que estar consistentes para correr as operações seguintes piora a performance do sistema em 59.2\%. O tipo de disco foi o segundo parâmetro que afetou mais o sistema positivamente, tendo um impacto de 30.59\% na performance. Este comportamento é esperado devido ao facto de a velocidade de leituras/escritas do disco afetar a velocidade de cada transação.

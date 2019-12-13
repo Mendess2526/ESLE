@@ -1,0 +1,76 @@
+% This is samplepaper.tex, a sample chapter demonstrating the
+% LLNCS macro package for Springer Computer Science proceedings;
+% Version 2.20 of 2017/10/04
+%
+\documentclass[runningheads]{llncs}
+%\documentclass[runningheads]{article}
+%
+\usepackage[portuguese]{babel}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{minted}
+\usepackage{xcolor}
+% Used for displaying a sample figure. If possible, figure files should
+% be included in EPS format.
+%
+% If you use the hyperref package, please uncomment the following line
+% to display URLs in blue roman font according to Springer's eBook style:
+% \renewcommand\UrlFont{\color{blue}\rmfamily}
+
+\begin{document}
+%
+\title{Postgres Load Balancing Benchmark}
+%
+%\titlerunning{Abbreviated paper title}
+% If the paper title is too long for the running head, you can set
+% an abbreviated paper title here
+%
+\author{
+Grupo 5 \\
+Filipe Inês, n78775, º \\
+Pedro Mendes, n97144, pedromendesfc@tecnico.ulisboa.pt
+}
+\authorrunning{Filipe Inês, Pedro Mendes}
+
+\institute{Instituto Superior Técnico, Taguspark, Portugal}
+%
+\maketitle              % typeset the header of the contribution
+%
+\begin{abstract}
+\input{sections/abstract.tex}
+\end{abstract}
+%
+%
+%
+\section{Parte 1}
+
+\input{sections/intro.tex}
+
+\input{sections/pgpool.tex}
+
+
+\input{sections/results.tex}
+
+\input{sections/conclusions.tex}
+
+\section{Parte 2}
+
+\input{sections/part2_introduction.tex}
+
+\input{sections/part2_machine_specs.tex}
+
+\input{sections/part2_parameters.tex}
+
+%
+% ---- Bibliography ----
+%
+% BibTeX users should specify bibliography style 'splncs04'.
+% References will then be sorted and formatted in the correct style.
+%
+% \bibliographystyle{splncs04}
+% \bibliography{mybibliography}
+%
+\bibliography{bibliography.bib}
+\bibliographystyle{unsrt}
+\end{document}
